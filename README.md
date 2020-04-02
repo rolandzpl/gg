@@ -1,0 +1,1 @@
+https://maciejewski.com/pl/bot-gg-w-csharp-implementacja-protokolu-logowanie/
