@@ -36,6 +36,39 @@ namespace MTGG
         public event EventHandler LoggedFail;
         public event ContactEventHandler ContactStateChanged;
         public event ContactEventHandler ContactInfoReceived;
+        public event MessageEventHandler MessageReceived;
+        public event MessageEventHandler MessageStateChanged;
+        public event TypingEventHandler ContactTyping;
+
+        public void SendMessage(GGMessage message)
+        {
+            message.Sender = this.number;
+            foreach (uint recipient in message.Recipients)
+            {
+                List<uint> recipients = message.Recipients.ToList();
+                recipients.Remove(recipient);
+                SendMessagePacket packet = new SendMessagePacket(recipient, recipients.ToArray(),
+                    message.HtmlMessage, message.PlainMessage, message.Sequence);
+                lock (this.messages)
+                {
+                    this.messages.Add(message.Sequence, message);
+                }
+                this.packetManager.AddPacket(packet);
+            }
+        }
+
+        public void NotifyTyping(GGContact contact, ushort count)
+        {
+            this.NotifyTyping(contact.Number, count);
+        }
+
+        public void NotifyTyping(uint number, ushort count)
+        {
+            TypingNotifyPacket packet = new TypingNotifyPacket(number, count);
+            this.packetManager.AddPacket(packet);
+        }
+
+        private Dictionary<uint, GGMessage> messages;
 
         public State State { get; private set; }
 
@@ -136,6 +169,52 @@ namespace MTGG
                     }
                     break;
 
+                case PacketType.TypingNotify:
+                    TypingNotifyPacket typing = e.Packet as TypingNotifyPacket;
+                    if (this.ContactTyping != null)
+                    {
+                        if (this.contacts.ContainsKey(typing.Number))
+                        {
+                            GGContact contact = this.contacts[typing.Number];
+                            this.ContactTyping(this, new TypingEventArgs(typing.Value, contact));
+                        }
+                    }
+                    break;
+
+                case PacketType.SendMessageAck:
+                    SendMessageAckPacket ack = e.Packet as SendMessageAckPacket;
+                    if (this.messages.ContainsKey(ack.Sequence))
+                    {
+                        GGMessage message = this.messages[ack.Sequence];
+                        lock (this.messages)
+                        {
+                            this.messages.Remove(ack.Sequence);
+                        }
+                        if (this.MessageStateChanged != null)
+                        {
+                            this.MessageStateChanged(this, new MessageEventArgs(ack.Status, message));
+                        }
+                    }
+                    break;
+
+                case PacketType.RecvMessage:
+                    ReceiveMessagePacket receive = e.Packet as ReceiveMessagePacket;
+                    GGMessage msg = new GGMessage(receive.Recipients);
+                    msg.Sender = receive.Sender;
+                    msg.HtmlMessage = receive.HtmlMessage;
+                    msg.PlainMessage = receive.PlainMessage;
+                    msg.Time = receive.Time;
+                    msg.Sequence = receive.Sequence;
+
+                    ReceiveMessageAckPacket confirm = new ReceiveMessageAckPacket(receive.Sequence);
+                    this.packetManager.AddPacket(confirm);
+
+                    if (this.MessageReceived != null)
+                    {
+                        MessageEventArgs args = new MessageEventArgs(MessageStatus.Delivered, msg);
+                        this.MessageReceived(this, args);
+                    }
+                    break;
             }
         }
 

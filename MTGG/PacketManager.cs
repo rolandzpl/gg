@@ -157,6 +157,10 @@ namespace MTGG
             this.packets.Add(PacketType.Status, typeof(NotifyReplyPacket));
             this.packets.Add(PacketType.NotifyReply80, typeof(NotifyReplyPacket));
             this.packets.Add(PacketType.UserData, typeof(UserDataPacket));
+            this.packets.Add(PacketType.RecvMessage, typeof(ReceiveMessagePacket));
+            this.packets.Add(PacketType.SendMessageAck, typeof(SendMessageAckPacket));
+            this.packets.Add(PacketType.TypingNotify, typeof(TypingNotifyPacket));
+            this.packets.Add(PacketType.RecvOwnMessage, typeof(ReceiveMessagePacket));
         }
 
         private void Connector_Disconnected(object sender, EventArgs e)
